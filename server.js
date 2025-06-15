@@ -1,55 +1,50 @@
-const express = require('express');
-const axios = require('axios');
-const dotenv = require('dotenv');
-
-dotenv.config();
+const express = require("express");
+const axios = require("axios");
+require("dotenv").config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-// Route to confirm the server is live
-app.get('/', (req, res) => {
-  res.send('Zoho Backend is running');
+// OAuth constants
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
+
+app.get("/", (req, res) => {
+  res.send("Hello! OAuth working.");
 });
 
-// === Route for Redirect URI ===
-app.get('/redirect', async (req, res) => {
-  const code = req.query.code;
+app.get("/auth/zoho", (req, res) => {
+  const scope = "ZohoCRM.modules.ALL";
+  const authUrl = `https://accounts.zoho.in/oauth/v2/auth?scope=${scope}&client_id=${CLIENT_ID}&response_type=code&access_type=offline&redirect_uri=${REDIRECT_URI}`;
+  res.redirect(authUrl);
+});
 
-  if (!code) {
-    return res.status(400).send('Authorization code not found');
-  }
+app.get("/auth/callback", async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.send("No code found.");
 
   try {
-    const tokenResponse = await axios.post('https://accounts.zoho.in/oauth/v2/token', null, {
+    const response = await axios.post("https://accounts.zoho.in/oauth/v2/token", null, {
       params: {
         code,
-        client_id: process.env.CLIENT_ID,
-        client_secret: process.env.CLIENT_SECRET,
-        redirect_uri: process.env.REDIRECT_URI,
-        grant_type: 'authorization_code'
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        redirect_uri: REDIRECT_URI,
+        grant_type: "authorization_code"
       },
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        "Content-Type": "application/x-www-form-urlencoded"
       }
     });
 
-    const data = tokenResponse.data;
-    console.log('✅ Access Token:', data.access_token);
-    console.log('🔁 Refresh Token:', data.refresh_token);
-
-    // In production, save tokens in DB or secure storage
-    res.send(`
-      <h2>✅ Zoho Auth Successful</h2>
-      <p><strong>Access Token:</strong> ${data.access_token}</p>
-      <p><strong>Refresh Token:</strong> ${data.refresh_token}</p>
-    `);
-  } catch (error) {
-    console.error('❌ Token exchange failed:', error.response?.data || error.message);
-    res.status(500).send('Token exchange failed');
+    const accessToken = response.data.access_token;
+    res.send(`Access Token: ${accessToken}`);
+  } catch (err) {
+    res.status(500).send("Error getting access token: " + err.message);
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
